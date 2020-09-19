@@ -1,0 +1,18 @@
+[package]
+name = "s3cs"
+version = "0.1.0"
+authors = ["Antonio Yang <yanganto@gmail.com>"]
+edition = "2018"
+edition = "2018"
+license = "MIT"
+keywords = []
+readme = "README.md"
+description = "An agent to help S3 Cache Share"
+
+
+[dependencies]
+actix-multipart = "0.3"
+actix-web = "3"
+futures = "0.3.1"
+sanitize-filename = "0.2"
+rocksdb = "0.14.0"
