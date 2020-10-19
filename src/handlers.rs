@@ -4,16 +4,26 @@ use actix_web::{
 };
 use tracing::debug;
 
-pub async fn post_handler(mut payload: Bytes) -> Result<HttpResponse, Error> {
+pub async fn post_handler(
+    Path((obj,)): Path<(String,)>,
+    payload: Bytes,
+) -> Result<HttpResponse, Error> {
     debug!("post:{:#?}", payload);
-    Ok(HttpResponse::Ok().into())
+
+    // TODO: support json output
+    if let Some((bucket, key)) = obj.as_str().split_once('/') {
+        Ok(HttpResponse::Ok().body(format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<InitiateMultipartUploadResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Bucket>{}</Bucket><Key>{}</Key><UploadId>7xx8ZHUavJ6n3nUd1ugYUPZjrsIiamytRkvGST6DsyqNbXbAig30yTXcGUAZRxGnNEMWKqe7QiK6VUpHkSf9xjGouk2EcvkbWEzg1iSm7sT427J8yDVW2NEWsdV5D2TsA5_.RU.MauLAk0Tlyo9VVg--</UploadId></InitiateMultipartUploadResult>", bucket, key)))
+    } else {
+        Ok(HttpResponse::MethodNotAllowed()
+            .body("Post on root is not allow")
+            .into())
+    }
 }
 
 pub async fn put_handler(
     Path((key,)): Path<(String,)>,
     payload: Bytes,
 ) -> Result<HttpResponse, Error> {
-    // debug!("put: {} bytes", payload.len());
     debug!("PUT key: {} {} bytes", key, payload.len());
     Ok(HttpResponse::Ok().into())
 }

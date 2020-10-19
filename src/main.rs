@@ -1,3 +1,4 @@
+#![feature(str_split_once)]
 use actix_web::{middleware, web, App, HttpServer};
 use handlers::{get_hander, post_handler, put_handler};
 use tracing_subscriber;
