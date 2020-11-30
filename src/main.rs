@@ -5,6 +5,7 @@ use hyper::Server;
 
 use handlers::s3;
 
+mod constants;
 mod handlers;
 
 async fn shutdown_signal() {
