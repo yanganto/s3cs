@@ -1,7 +1,12 @@
-use std::convert::Infallible;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use http::header::AUTHORIZATION;
+use hyper::service::Service;
 use hyper::{body::HttpBody, Body, Method, Request, Response};
+use rocksdb::DB;
 use s3handler::blocking::aws::{aws_s3_v2_get_string_to_signed, aws_s3_v2_sign};
 use tokio::fs;
 
@@ -57,27 +62,74 @@ async fn validate_aws_v2(mut r: Request<Body>, auth_header: &str) -> Option<Vec<
     valid_paload
 }
 
-pub async fn s3(r: Request<Body>) -> Result<Response<Body>, Infallible> {
-    let method = r.method().clone();
-    let valid_paload = {
-        let headers = r.headers().clone();
-        if headers.contains_key(AUTHORIZATION) {
-            match headers[AUTHORIZATION].to_str() {
-                // TODO support V4 and more than AWS client
-                Ok(auth_header) if auth_header.starts_with("AWS ") => {
-                    validate_aws_v2(r, auth_header).await
-                }
-                _ => None,
-            }
-        } else {
-            None
-        }
-    };
-    if valid_paload.is_none() {
-        return Ok(Response::new(Body::from("Unauthorize")));
+pub struct S3Svc {
+    db: Arc<DB>,
+}
+
+impl Service<Request<Body>> for S3Svc {
+    type Response = Response<Body>;
+    type Error = hyper::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
-    match method {
-        Method::GET => Ok(Response::new(Body::from("object"))),
-        _ => Ok(Response::new(Body::from("Unimplement"))),
+
+    fn call(&mut self, r: Request<Body>) -> Self::Future {
+        let method = r.method().clone();
+        let uri = r.uri().clone();
+        let db = self.db.clone();
+
+        Box::pin(async move {
+            let valid_paload = {
+                let headers = r.headers().clone();
+                if headers.contains_key(AUTHORIZATION) {
+                    match headers[AUTHORIZATION].to_str() {
+                        // TODO support V4 and more than AWS client
+                        Ok(auth_header) if auth_header.starts_with("AWS ") => {
+                            validate_aws_v2(r, auth_header).await
+                        }
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            };
+            if let Some(valid_paload) = valid_paload {
+                match method {
+                    Method::GET => Ok(Response::new(Body::from("object"))),
+                    Method::PUT => {
+                        // TODO: handle db error
+                        db.put(uri.path(), valid_paload).unwrap();
+
+                        // TODO: 201 saved
+                        Ok(Response::new(Body::from("object")))
+                    }
+                    _ => Ok(Response::new(Body::from("Unimplement"))),
+                }
+            } else {
+                Ok(Response::new(Body::from("Unauthorize")))
+            }
+        })
+    }
+}
+
+pub struct MakeS3Svc {
+    pub db: Arc<DB>,
+}
+
+impl<T> Service<T> for MakeS3Svc {
+    type Response = S3Svc;
+    type Error = hyper::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, _: T) -> Self::Future {
+        let db = self.db.clone();
+        let fut = async move { Ok(S3Svc { db }) };
+        Box::pin(fut)
     }
 }
