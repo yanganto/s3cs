@@ -2,8 +2,7 @@ use std::fs::{remove_file, File};
 use std::io::prelude::*;
 
 use executable_path::executable_path;
-use subprocess::{Exec, Popen};
-#[cfg(feature = "ci-test")]
+use subprocess::{Exec, Popen, Redirection};
 use tokio::time::{delay_for, Duration};
 
 pub struct MockServer {
@@ -20,7 +19,12 @@ impl MockServer {
         let tmp_file_name = "/tmp/s3cs-test";
         let access_key = "AAAAAAAAAAAAAAAAAAAA";
         let secret_key = "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS";
-        let popen = Exec::cmd(executable_path("s3cs")).popen().unwrap();
+        let log_file = File::create("/tmp/log").expect("log open error");
+        let popen = Exec::cmd(executable_path("s3cs"))
+            .env("RUST_LOG", "trace")
+            .stdout(Redirection::File(log_file))
+            .popen()
+            .unwrap();
         let tmp_file_content = "This is a test file\n";
 
         // Eventurally, the file base key is for admin
@@ -31,8 +35,13 @@ impl MockServer {
         let content: Vec<u8> = tmp_file_content.bytes().collect();
         tmp_file.write_all(&content).unwrap();
 
+        // This is a simple workaround to wait the server ready
+        // if you got some service unavailbe problem on running test,
+        // extending the delay time may work
         #[cfg(feature = "ci-test")]
         delay_for(Duration::from_secs(30)).await;
+        #[cfg(not(feature = "ci-test"))]
+        delay_for(Duration::from_secs(1)).await;
 
         Self {
             inner: popen,

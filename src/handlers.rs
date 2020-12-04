@@ -5,15 +5,16 @@ use std::task::{Context, Poll};
 
 use http::header::AUTHORIZATION;
 use hyper::service::Service;
-use hyper::{body::HttpBody, Body, Method, Request, Response};
+use hyper::{body::HttpBody, Body, Method, Request, Response, StatusCode};
 use rocksdb::DB;
 use s3handler::blocking::aws::{aws_s3_v2_get_string_to_signed, aws_s3_v2_sign};
 use tokio::fs;
+use tracing::{debug, error, info, warn};
 
 use crate::constants::KEY_FOLDER;
 
 async fn validate_aws_v2(mut r: Request<Body>, auth_header: &str) -> Option<Vec<u8>> {
-    let mut valid_paload: Option<Vec<u8>> = None;
+    let mut valid_payload: Option<Vec<u8>> = None;
     let (access_key, signature) = {
         let auth_body = auth_header
             .split(" ")
@@ -27,7 +28,7 @@ async fn validate_aws_v2(mut r: Request<Body>, auth_header: &str) -> Option<Vec<
         )
     };
     if let Ok(secret_key) = fs::read_to_string(&format!("{}/{}", KEY_FOLDER, access_key)).await {
-        valid_paload = match r.body_mut().data().await {
+        valid_payload = match r.body_mut().data().await {
             Some(Ok(payload)) => Some(payload.to_vec()),
             _ => Some(Vec::new()),
         };
@@ -56,10 +57,10 @@ async fn validate_aws_v2(mut r: Request<Body>, auth_header: &str) -> Option<Vec<
             ),
         );
         if sig != signature {
-            valid_paload = None;
+            valid_payload = None;
         }
     }
-    valid_paload
+    valid_payload
 }
 
 pub struct S3Svc {
@@ -81,7 +82,7 @@ impl Service<Request<Body>> for S3Svc {
         let db = self.db.clone();
 
         Box::pin(async move {
-            let valid_paload = {
+            let valid_payload = {
                 let headers = r.headers().clone();
                 if headers.contains_key(AUTHORIZATION) {
                     match headers[AUTHORIZATION].to_str() {
@@ -95,24 +96,30 @@ impl Service<Request<Body>> for S3Svc {
                     None
                 }
             };
-            if let Some(valid_paload) = valid_paload {
+            if let Some(valid_payload) = valid_payload {
+                info!("{} request", method);
+                debug!("payload {:?}", valid_payload);
                 match method {
-                    Method::GET => {
-                        match db.get(uri.path()) {
-                            Ok(Some(v)) => Ok(Response::new(Body::from(v))),
-                            Ok(None) => Ok(Response::new(Body::from("Not Found"))),
-                            Err(_e) => {
-                                // TODO log db error here
-                                Ok(Response::new(Body::from("Not Found")))
-                            }
+                    Method::GET => match db.get(uri.path()) {
+                        Ok(Some(v)) => Ok(Response::new(Body::from(v))),
+                        Ok(None) => {
+                            // TODO: proxy here
+                            Ok(Response::new(Body::from("Not Found")))
                         }
-                    }
+                        Err(e) => {
+                            warn!("get object error: {:?}", e);
+                            Ok(Response::new(Body::from("Not Found")))
+                        }
+                    },
                     Method::PUT => {
-                        // TODO: handle db error
-                        db.put(uri.path(), valid_paload).unwrap();
-
-                        // TODO: 201 saved
-                        Ok(Response::new(Body::from("Updated")))
+                        let mut r = Response::new(Body::from(Vec::new()));
+                        if let Err(e) = db.put(uri.path(), valid_payload) {
+                            error!("put object error: {:?}", e);
+                            *r.status_mut() = StatusCode::CREATED;
+                        } else {
+                            *r.status_mut() = StatusCode::CREATED;
+                        }
+                        Ok(r)
                     }
                     _ => Ok(Response::new(Body::from("Unimplement"))),
                 }
