@@ -97,13 +97,22 @@ impl Service<Request<Body>> for S3Svc {
             };
             if let Some(valid_paload) = valid_paload {
                 match method {
-                    Method::GET => Ok(Response::new(Body::from("object"))),
+                    Method::GET => {
+                        match db.get(uri.path()) {
+                            Ok(Some(v)) => Ok(Response::new(Body::from(v))),
+                            Ok(None) => Ok(Response::new(Body::from("Not Found"))),
+                            Err(_e) => {
+                                // TODO log db error here
+                                Ok(Response::new(Body::from("Not Found")))
+                            }
+                        }
+                    }
                     Method::PUT => {
                         // TODO: handle db error
                         db.put(uri.path(), valid_paload).unwrap();
 
                         // TODO: 201 saved
-                        Ok(Response::new(Body::from("object")))
+                        Ok(Response::new(Body::from("Updated")))
                     }
                     _ => Ok(Response::new(Body::from("Unimplement"))),
                 }
