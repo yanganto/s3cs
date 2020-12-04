@@ -19,4 +19,4 @@ jobs:
     - name: Build
       run: cargo build
     - name: Test
-      run: cargo test --features=ci-test -- --nocapture
+      run: cargo test --features=ci-test -- --nocapture && cat /tmp/log
