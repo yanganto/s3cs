@@ -21,3 +21,7 @@ s3handler = { git="https://github.com/yanganto/s3handler.git", branch="develop" 
 [dev-dependencies]
 executable-path = "1.0"
 subprocess = "0.2"
+
+[features]
+default = []
+ci-test = []
