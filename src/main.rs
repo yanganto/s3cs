@@ -6,11 +6,9 @@ use rocksdb::DB;
 use tracing::{error, info};
 use tracing_subscriber;
 
-use admin::MakeAdminSvc;
 use constants::{ADMIN_PORT, S3_PORT};
-use handlers::MakeS3Svc;
+use handlers::{admin::MakeAdminSvc, s3::MakeS3Svc};
 
-mod admin;
 mod constants;
 mod handlers;
 
