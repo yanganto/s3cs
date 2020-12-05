@@ -23,6 +23,7 @@ s3handler = { git="https://github.com/yanganto/s3handler.git", branch="develop" 
 executable-path = "1.0"
 subprocess = "0.2"
 file_diff = "1.0"
+reqwest = "0.10"
 
 [features]
 default = []
