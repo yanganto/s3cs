@@ -58,18 +58,25 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config: Config = {
         let mut contents = String::new();
-        let mut f = if let Some(config) = config {
+        let f = if let Some(config) = config {
             File::open(&config)
         } else if let Some(mut config) = config_dir() {
             config.push("s3cs.toml");
             File::open(config)
         } else {
             panic!("no config folder in your OS");
+        };
+        match f {
+            Ok(mut f) => {
+                f.read_to_string(&mut contents)
+                    .expect("config should be read");
+                toml::from_str(&contents).expect("config file format should correct")
+            }
+            Err(_e) => {
+                println!("configure file can not be opened correctly, please use `s3sc -g` to generate one");
+                return Ok(());
+            }
         }
-        .expect("config should be opened");
-        f.read_to_string(&mut contents)
-            .expect("config should be read");
-        toml::from_str(&contents).expect("config file format should correct")
     };
 
     tracing_subscriber::fmt::init();
