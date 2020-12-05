@@ -1,5 +1,6 @@
 use std::fs::{remove_file, File};
 use std::io::prelude::*;
+use std::process::Command;
 
 use executable_path::executable_path;
 use subprocess::{Exec, Popen, Redirection};
@@ -20,7 +21,13 @@ impl MockServer {
         let access_key = "AAAAAAAAAAAAAAAAAAAA";
         let secret_key = "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS";
         let log_file = File::create("/tmp/log").expect("log open error");
-        let popen = Exec::cmd(executable_path("s3cs"))
+        let exe = executable_path("s3cs");
+        let status = Command::new(&exe)
+            .arg("-g")
+            .status()
+            .expect("failed to execute process");
+        assert!(status.success());
+        let popen = Exec::cmd(exe)
             .env("RUST_LOG", "trace")
             .stdout(Redirection::File(log_file))
             .popen()
