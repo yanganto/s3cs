@@ -11,8 +11,6 @@ use s3handler::blocking::aws::{aws_s3_v2_get_string_to_signed, aws_s3_v2_sign};
 use tokio::fs;
 use tracing::{debug, error, info, warn};
 
-use crate::constants::KEY_FOLDER;
-
 async fn validate_aws_v2(mut r: Request<Body>, auth_header: &str) -> Option<Vec<u8>> {
     let mut valid_payload: Option<Vec<u8>> = None;
     let (access_key, signature) = {
@@ -27,7 +25,8 @@ async fn validate_aws_v2(mut r: Request<Body>, auth_header: &str) -> Option<Vec<
             auth_body.next().unwrap_or_default().to_string(),
         )
     };
-    if let Ok(secret_key) = fs::read_to_string(&format!("{}/{}", KEY_FOLDER, access_key)).await {
+    // TODO: load key from key folder before service running
+    if let Ok(secret_key) = fs::read_to_string(&format!("/tmp/{}", access_key)).await {
         valid_payload = match r.body_mut().data().await {
             Some(Ok(payload)) => Some(payload.to_vec()),
             _ => Some(Vec::new()),
