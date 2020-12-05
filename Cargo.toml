@@ -16,12 +16,14 @@ rocksdb = "0.14"
 tracing = "0.1"
 tracing-subscriber = "0.2"
 http = "0.2"
+futures-util = "0.3"
 s3handler = { git="https://github.com/yanganto/s3handler.git", branch="develop" }
 
 [dev-dependencies]
 executable-path = "1.0"
 subprocess = "0.2"
 file_diff = "1.0"
+reqwest = "0.10"
 
 [features]
 default = []
